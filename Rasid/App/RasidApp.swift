@@ -9,6 +9,7 @@ struct RasidApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .overlay { if model.isLocked { LockView() } }
                 .environmentObject(model)
                 .environment(\.layoutDirection, .rightToLeft)
                 .environment(\.locale, Locale(identifier: "ar"))
@@ -16,7 +17,11 @@ struct RasidApp: App {
                 .tint(Theme.brand)
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { model.syncSoon() }
+            switch phase {
+            case .active: if !model.isLocked { model.syncSoon() }
+            case .background: model.lockIfNeeded()
+            default: break
+            }
         }
     }
 }

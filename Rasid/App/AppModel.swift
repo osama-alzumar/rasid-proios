@@ -18,6 +18,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var lastSyncError: String?
     /// Shown full-screen: the shop subscription ended or the account was disabled.
     @Published var blockingMessage: String?
+    /// The platform owner's session is locked behind Face ID / the device
+    /// passcode whenever the app comes back to the foreground.
+    @Published private(set) var isLocked = false
 
     private var store: LocalStore
     private var api: APIClient
@@ -49,6 +52,9 @@ final class AppModel: ObservableObject {
         api = APIClient(token: token)
         store = LocalStore(fileURL: demo ? nil : LocalStore.defaultFileURL())
         phase = (token != nil || demo) ? .loggedIn : .loggedOut
+        // Lock straight away on launch if the saved session is the owner's;
+        // the snapshot is not loaded yet, so use the flag saved at login.
+        isLocked = phase == .loggedIn && !demo && UserDefaults.standard.bool(forKey: Self.ownerSessionKey)
 
         if demo {
             Task { await loadDemo() }
@@ -83,6 +89,7 @@ final class AppModel: ObservableObject {
             throw APIError.rejected(status: 403, message: "هذا التطبيق مخصص لحسابات التاجر والكاشير ومدير النظام.")
         }
         Keychain.saveToken(result.token)
+        UserDefaults.standard.set(result.user.isSuperAdmin, forKey: Self.ownerSessionKey)
         api = APIClient(token: result.token)
         try await store.replaceSession(user: result.user)
         await reloadSnapshot()
@@ -93,12 +100,35 @@ final class AppModel: ObservableObject {
     func logout() async {
         if !isDemo { try? await api.logout() }
         Keychain.deleteToken()
+        UserDefaults.standard.removeObject(forKey: Self.ownerSessionKey)
+        isLocked = false
         api = APIClient()
         try? await store.clear()
         await reloadSnapshot()
         blockingMessage = nil
         lastSyncError = nil
         phase = .loggedOut
+    }
+
+    // MARK: Owner lock
+
+    static let ownerSessionKey = "ownerSession"
+
+    var requiresDeviceLock: Bool { UserDefaults.standard.bool(forKey: Self.ownerSessionKey) && !isDemo }
+
+    func lockIfNeeded() {
+        if phase == .loggedIn && requiresDeviceLock { isLocked = true }
+    }
+
+    func unlock() async -> String? {
+        switch await DeviceAuth.authenticate(reason: "افتح حساب صاحب المنصة") {
+        case .success:
+            isLocked = false
+            syncSoon()
+            return nil
+        case .failure(let message):
+            return message
+        }
     }
 
     // MARK: Sync

@@ -42,6 +42,7 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.business
         ITSAppUsesNonExemptEncryption: false
+        NSFaceIDUsageDescription: يستخدم رصيد بصمة الوجه لحماية حساب صاحب المنصة، فلا يفتحه أحد غيرك.
         NSCameraUsageDescription: يستخدم رصيد الكاميرا لمسح رمز بطاقة ولاء العميل عند إضافة النقاط أو الأختام أو استبدال المكافآت.
         UILaunchScreen:
           UIColorName: AccentColor

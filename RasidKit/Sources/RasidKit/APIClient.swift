@@ -130,7 +130,8 @@ public struct APIClient: Sendable {
     // MARK: Endpoints
 
     public func login(email: String, password: String) async throws -> LoginResult {
-        struct Body: Encodable { let email: String; let password: String }
+        // `client` lets the server apply app-only rules (owner-only super admin).
+        struct Body: Encodable { let email: String; let password: String; var client = "ios" }
         struct Payload: Decodable { let user: User; let token: String }
         do {
             let payload: Payload = try await request("POST", "login", body: Body(email: email, password: password), envelope: true)
