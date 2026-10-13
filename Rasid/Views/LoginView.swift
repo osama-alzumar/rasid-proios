@@ -50,6 +50,9 @@ struct LoginView: View {
                             }
                         }
                         .textContentType(.password)
+                        // Passwords are Latin; on an Arabic phone the default
+                        // keyboard would otherwise open in Arabic.
+                        .keyboardType(.asciiCapable)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .focused($focus, equals: .password)
