@@ -8,9 +8,19 @@ final class ScreenshotTests: XCTestCase {
         continueAfterFailure = false
     }
 
+    /// Run the system UI (alerts, keyboard, status bar) in Arabic as well.
+    private let arabic = ["-AppleLanguages", "(ar)", "-AppleLocale", "ar_SA"]
+
+    /// iPhone shows a bottom tab bar; iPadOS 18+ shows the tabs as a floating
+    /// bar at the top, which is not exposed as `tabBars`.
+    private func tab(_ app: XCUIApplication, _ title: String) -> XCUIElement {
+        let inTabBar = app.tabBars.buttons[title]
+        return inTabBar.exists ? inTabBar : app.buttons[title].firstMatch
+    }
+
     private func launch(_ extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-RasidDemo", "-hasLaunchedBefore", "YES"] + extra
+        app.launchArguments = ["-RasidDemo", "-hasLaunchedBefore", "YES"] + arabic + extra
         app.launch()
         return app
     }
@@ -24,11 +34,10 @@ final class ScreenshotTests: XCTestCase {
 
     func testCashierFlow() {
         let app = launch()
-        let tabs = app.tabBars.firstMatch
-        XCTAssertTrue(tabs.waitForExistence(timeout: 10))
+        XCTAssertTrue(tab(app, "العملاء").waitForExistence(timeout: 10))
         snap(app, "01-scan")
 
-        tabs.buttons["العملاء"].tap()
+        tab(app, "العملاء").tap()
         let member = app.staticTexts["سارة العتيبي"]
         XCTAssertTrue(member.waitForExistence(timeout: 5))
         snap(app, "02-members")
@@ -42,20 +51,19 @@ final class ScreenshotTests: XCTestCase {
         snap(app, "04-earn")
         app.buttons["إلغاء"].tap()
 
-        tabs.buttons["السجل"].tap()
+        tab(app, "السجل").tap()
         XCTAssertTrue(app.staticTexts["آخر العمليات"].waitForExistence(timeout: 5))
         snap(app, "05-history")
 
-        tabs.buttons["الإعدادات"].tap()
+        tab(app, "الإعدادات").tap()
         XCTAssertTrue(app.staticTexts["المظهر"].waitForExistence(timeout: 5))
         snap(app, "06-settings")
     }
 
     func testDarkModeScreens() {
         let app = launch(["-appearance", "dark"])
-        let tabs = app.tabBars.firstMatch
-        XCTAssertTrue(tabs.waitForExistence(timeout: 10))
-        tabs.buttons["العملاء"].tap()
+        XCTAssertTrue(tab(app, "العملاء").waitForExistence(timeout: 10))
+        tab(app, "العملاء").tap()
         let member = app.staticTexts["خالد الشهري"]
         XCTAssertTrue(member.waitForExistence(timeout: 5))
         member.tap()
@@ -66,7 +74,7 @@ final class ScreenshotTests: XCTestCase {
     func testLoginScreen() {
         let app = XCUIApplication()
         // No demo flag and a fresh install: the sign-in screen must appear.
-        app.launchArguments = ["-hasLaunchedBefore", "NO"]
+        app.launchArguments = ["-hasLaunchedBefore", "NO"] + arabic
         app.launch()
         XCTAssertTrue(app.staticTexts["دخول التاجر والكاشير"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["تسجيل الدخول"].exists)

@@ -48,7 +48,7 @@ struct ScanView: View {
             AddMemberView { member in found = member }
         }
         .task {
-            if CameraAccess.status == .notDetermined {
+            if CameraAccess.status == .notDetermined && !model.isDemo {
                 cameraAllowed = await CameraAccess.request()
                 cameraDenied = !cameraAllowed
             }
