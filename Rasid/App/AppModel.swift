@@ -68,12 +68,19 @@ final class AppModel: ObservableObject {
 
     func member(id: Int) -> Member? { snapshot.members[id] }
 
+    /// Super admin without a chosen shop: only the platform tab makes sense.
+    var needsShopSelection: Bool { user?.isSuperAdmin == true && snapshot.selectedShopId == nil }
+
+    /// `shop_id` for requests that create things: the chosen shop for a super
+    /// admin; staff never send one (the server pins them to their own shop).
+    private var workingShopId: Int? { user?.isSuperAdmin == true ? snapshot.selectedShopId : nil }
+
     // MARK: Session
 
     func login(email: String, password: String) async throws {
         let result = try await APIClient().login(email: email.trimmingCharacters(in: .whitespaces), password: password)
-        guard result.user.role == .cashier || result.user.role == .shopManager else {
-            throw APIError.rejected(status: 403, message: "هذا التطبيق مخصص لحسابات التاجر والكاشير فقط.")
+        guard [.cashier, .shopManager, .superAdmin].contains(result.user.role) else {
+            throw APIError.rejected(status: 403, message: "هذا التطبيق مخصص لحسابات التاجر والكاشير ومدير النظام.")
         }
         Keychain.saveToken(result.token)
         api = APIClient(token: result.token)
@@ -158,6 +165,10 @@ final class AppModel: ObservableObject {
         guard !isDemo else { throw APIError.rejected(status: 404, message: "لم يتم العثور على العميل.") }
         do {
             let member = try await api.lookupMember(code: code.trimmingCharacters(in: .whitespacesAndNewlines))
+            // A super admin's lookup searches every shop; only accept the shop being worked on.
+            if let shopId = workingShopId, member.shopId != shopId {
+                throw APIError.rejected(status: 404, message: "هذا العميل مسجل في محل آخر.")
+            }
             try await store.upsertMember(member)
             await reloadSnapshot()
             return member
@@ -185,7 +196,7 @@ final class AppModel: ObservableObject {
     }
 
     func createMember(name: String, phone: String?) async throws -> Member {
-        let member = try await api.createMember(name: name, phone: phone)
+        let member = try await api.createMember(name: name, phone: phone, shopId: workingShopId)
         try await store.upsertMember(member)
         await reloadSnapshot()
         return member
@@ -199,6 +210,23 @@ final class AppModel: ObservableObject {
 
     func dashboard(period: String) async throws -> DashboardStats {
         try await api.dashboardStats(period: period)
+    }
+
+    // MARK: Super admin
+
+    func platformStats(period: String) async throws -> PlatformStats {
+        try await api.platformStats(period: period)
+    }
+
+    func shops(search: String) async throws -> [Shop] {
+        try await api.shops(search: search)
+    }
+
+    /// Switches the offline copy to another shop and downloads it.
+    func selectShop(_ shop: Shop) async throws {
+        try await store.selectShop(shop)
+        await reloadSnapshot()
+        await syncNow()
     }
 
     // MARK: Demo (screenshots / UI tests only)

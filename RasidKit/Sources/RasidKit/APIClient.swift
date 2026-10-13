@@ -146,18 +146,35 @@ public struct APIClient: Sendable {
         let _: IgnoredBody = try await request("POST", "logout", body: Empty(), envelope: false)
     }
 
-    public func bootstrap() async throws -> BootstrapPayload {
-        try await request("GET", "app/bootstrap", envelope: true)
+    /// `shopId` is only sent for a super admin, who works on a chosen shop;
+    /// the server ignores it for shop staff.
+    public func bootstrap(shopId: Int? = nil) async throws -> BootstrapPayload {
+        try await request("GET", "app/bootstrap", query: Self.shopQuery(shopId), envelope: true)
     }
 
-    public func members(since: String?, afterId: Int) async throws -> MembersPage {
-        var query = [URLQueryItem(name: "after_id", value: String(afterId))]
+    public func members(since: String?, afterId: Int, shopId: Int? = nil) async throws -> MembersPage {
+        var query = [URLQueryItem(name: "after_id", value: String(afterId))] + Self.shopQuery(shopId)
         if let since { query.append(URLQueryItem(name: "since", value: since)) }
         return try await request("GET", "app/members", query: query, envelope: false)
     }
 
-    public func recentTransactions(limit: Int = 100) async throws -> [ServerTransaction] {
-        try await request("GET", "app/transactions", query: [URLQueryItem(name: "limit", value: String(limit))], envelope: true)
+    public func recentTransactions(limit: Int = 100, shopId: Int? = nil) async throws -> [ServerTransaction] {
+        try await request("GET", "app/transactions", query: [URLQueryItem(name: "limit", value: String(limit))] + Self.shopQuery(shopId), envelope: true)
+    }
+
+    /// GET /shops — super admin's shop picker.
+    public func shops(search: String) async throws -> [Shop] {
+        var query = [URLQueryItem(name: "per_page", value: "100")]
+        if !search.isEmpty { query.append(URLQueryItem(name: "search", value: search)) }
+        return try await request("GET", "shops", query: query, envelope: true)
+    }
+
+    public func platformStats(period: String) async throws -> PlatformStats {
+        try await request("GET", "dashboard/platform-stats", query: [URLQueryItem(name: "period", value: period)], envelope: true)
+    }
+
+    private static func shopQuery(_ shopId: Int?) -> [URLQueryItem] {
+        shopId.map { [URLQueryItem(name: "shop_id", value: String($0))] } ?? []
     }
 
     public func lookupMember(code: String) async throws -> Member {
@@ -165,8 +182,9 @@ public struct APIClient: Sendable {
         return try await request("GET", "members/lookup/\(escaped)", envelope: true)
     }
 
-    public func createMember(name: String, phone: String?) async throws -> Member {
+    public func createMember(name: String, phone: String?, shopId: Int? = nil) async throws -> Member {
         var body: [String: AnyEncodable] = ["name": AnyEncodable(name)]
+        if let shopId { body["shop_id"] = AnyEncodable(shopId) }
         if let phone, !phone.isEmpty { body["phone"] = AnyEncodable(phone) }
         return try await request("POST", "members", body: body, envelope: true)
     }

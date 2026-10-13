@@ -75,6 +75,7 @@ public struct User: Codable, Sendable, Equatable {
     public var canCreateMembers: Bool { can("members.create") }
     public var canCreateVehicles: Bool { can("vehicles.create") }
     public var isManager: Bool { role == .shopManager }
+    public var isSuperAdmin: Bool { role == .superAdmin }
 }
 
 public struct StampImage: Codable, Sendable, Equatable {
@@ -110,6 +111,8 @@ public struct Shop: Codable, Sendable, Equatable {
     public var expiresAt: String?
     public var isExpired: Bool
     public var stampImages: [StampImage]?
+    /// Only on shop lists (GET /shops).
+    public var membersCount: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, name, slug
@@ -124,6 +127,7 @@ public struct Shop: Codable, Sendable, Equatable {
         case expiresAt = "expires_at"
         case isExpired = "is_expired"
         case stampImages = "stamp_images"
+        case membersCount = "members_count"
     }
 
     public init(id: Int, name: String, rewardType: RewardType, numberOfStamps: Int? = nil, minStampAmount: Double? = nil, initialPoints: Int? = nil, pointsPerAmount: Double = 1, vehicleModuleEnabled: Bool = false) {
@@ -154,6 +158,7 @@ public struct Shop: Codable, Sendable, Equatable {
         expiresAt = try c.decodeIfPresent(String.self, forKey: .expiresAt)
         isExpired = try c.decodeIfPresent(Bool.self, forKey: .isExpired) ?? false
         stampImages = try c.decodeIfPresent([StampImage].self, forKey: .stampImages)
+        membersCount = try c.flexibleIntIfPresent(.membersCount)
     }
 
     /// Stamps needed for one reward (the server treats 0/null as 1).
@@ -471,5 +476,47 @@ public struct DashboardStats: Codable, Sendable, Equatable {
         totalVehicles = try c.flexibleIntIfPresent(.totalVehicles)
         activityChart = try c.decodeIfPresent([ChartPoint].self, forKey: .activityChart) ?? []
         recentActivities = try c.decodeIfPresent([Activity].self, forKey: .recentActivities) ?? []
+    }
+}
+
+/// GET /dashboard/platform-stats — the super admin's whole-platform overview.
+public struct PlatformStats: Decodable, Sendable, Equatable {
+    public struct TopShop: Decodable, Sendable, Equatable {
+        public var id: Int
+        public var name: String
+        public var transactionsCount: Int
+
+        enum CodingKeys: String, CodingKey {
+            case id, name
+            case transactionsCount = "transactions_count"
+        }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = try c.flexibleInt(.id)
+            name = try c.decodeIfPresent(String.self, forKey: .name) ?? "—"
+            transactionsCount = try c.flexibleIntIfPresent(.transactionsCount) ?? 0
+        }
+    }
+
+    public var shops: DashboardStats.Metric
+    public var customers: DashboardStats.Metric
+    public var transactions: DashboardStats.Metric
+    public var activeSubscriptions: DashboardStats.Metric
+    public var topActiveShops: [TopShop]
+
+    enum CodingKeys: String, CodingKey {
+        case shops, customers, transactions
+        case activeSubscriptions = "active_subscriptions"
+        case topActiveShops = "top_active_shops"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        shops = try c.decode(DashboardStats.Metric.self, forKey: .shops)
+        customers = try c.decode(DashboardStats.Metric.self, forKey: .customers)
+        transactions = try c.decode(DashboardStats.Metric.self, forKey: .transactions)
+        activeSubscriptions = try c.decode(DashboardStats.Metric.self, forKey: .activeSubscriptions)
+        topActiveShops = try c.decodeIfPresent([TopShop].self, forKey: .topActiveShops) ?? []
     }
 }

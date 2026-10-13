@@ -54,22 +54,36 @@ struct MainTabView: View {
 
     var body: some View {
         TabView {
-            if model.user?.isManager == true {
-                NavigationStack { DashboardView() }
-                    .tabItem { Label("الرئيسية", systemImage: "chart.bar.xaxis") }
+            if model.user?.isSuperAdmin == true {
+                NavigationStack { PlatformView() }
+                    .tabItem { Label("المنصة", systemImage: "building.2.fill") }
             }
-            if model.user?.isManager != true || model.user?.canCreateTransactions == true {
-                NavigationStack { ScanView() }
-                    .tabItem { Label("المسح", systemImage: "qrcode.viewfinder") }
+            if model.needsShopSelection {
+                NavigationStack { SettingsView() }
+                    .tabItem { Label("الإعدادات", systemImage: "gearshape.fill") }
+            } else {
+                shopTabs
             }
-            NavigationStack { MembersListView() }
-                .tabItem { Label("العملاء", systemImage: "person.2.fill") }
-            NavigationStack { HistoryView() }
-                .tabItem { Label("السجل", systemImage: "clock.arrow.circlepath") }
-                .badge(model.snapshot.pendingCount + model.snapshot.rejectedCount)
-            NavigationStack { SettingsView() }
-                .tabItem { Label("الإعدادات", systemImage: "gearshape.fill") }
         }
+    }
+
+    @ViewBuilder
+    private var shopTabs: some View {
+        if model.user?.isManager == true {
+            NavigationStack { DashboardView() }
+                .tabItem { Label("الرئيسية", systemImage: "chart.bar.xaxis") }
+        }
+        if model.user?.isManager != true || model.user?.canCreateTransactions == true {
+            NavigationStack { ScanView() }
+                .tabItem { Label("المسح", systemImage: "qrcode.viewfinder") }
+        }
+        NavigationStack { MembersListView() }
+            .tabItem { Label("العملاء", systemImage: "person.2.fill") }
+        NavigationStack { HistoryView() }
+            .tabItem { Label("السجل", systemImage: "clock.arrow.circlepath") }
+            .badge(model.snapshot.pendingCount + model.snapshot.rejectedCount)
+        NavigationStack { SettingsView() }
+            .tabItem { Label("الإعدادات", systemImage: "gearshape.fill") }
     }
 }
 

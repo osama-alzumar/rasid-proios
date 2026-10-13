@@ -22,6 +22,9 @@ final class FakeServer: HTTPTransport, @unchecked Sendable {
     var dropNextResponse = false
     var requests: [String] = []
     var expiredShop = false
+    var role = "cashier"
+    /// shop_id query values received on app/* endpoints.
+    var shopIdsSeen: [String?] = []
 
     init(shop: Shop, members: [Member]) {
         self.shop = shop
@@ -47,6 +50,11 @@ final class FakeServer: HTTPTransport, @unchecked Sendable {
             return respond(401, ["message": "Unauthenticated."])
         }
 
+        if path.hasPrefix("app/") { shopIdsSeen.append(query["shop_id"]) }
+        if role == "super_admin" && path.hasPrefix("app/") && path != "app/bootstrap" && query["shop_id"] == nil {
+            return respond(422, ["message": "The shop id field is required."])
+        }
+
         switch (request.httpMethod!, path) {
         case ("POST", "login"):
             let body = try JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any]
@@ -55,8 +63,9 @@ final class FakeServer: HTTPTransport, @unchecked Sendable {
             }
             return respond(200, ["success": true, "data": ["user": userJSON, "token": "good-token"]])
         case ("GET", "app/bootstrap"):
+            let noShop = role == "super_admin" && query["shop_id"] == nil
             return respond(200, ["success": true, "data": [
-                "server_time": "t\(clock)", "user": userJSON, "shop": shopJSON,
+                "server_time": "t\(clock)", "user": userJSON, "shop": noShop ? NSNull() : shopJSON as Any,
                 "services": [["id": 7, "name": "غسيل", "price": "25.00", "is_active": true, "sort_order": 1]],
             ]])
         case ("GET", "app/members"):
@@ -108,8 +117,8 @@ final class FakeServer: HTTPTransport, @unchecked Sendable {
     }
 
     var userJSON: [String: Any] {
-        ["id": 1, "name": "كاشير", "email": "c@x.com", "is_active": true, "shop_id": shop.id, "vehicle_module_enabled": false,
-         "role": "cashier", "permissions": ["members.view-any", "members.create", "transactions.create"]]
+        ["id": 1, "name": "كاشير", "email": "c@x.com", "is_active": true, "shop_id": role == "super_admin" ? NSNull() : shop.id as Any, "vehicle_module_enabled": false,
+         "role": role, "permissions": role == "super_admin" ? [] : ["members.view-any", "members.create", "transactions.create"]]
     }
 
     var shopJSON: [String: Any] {
@@ -413,5 +422,56 @@ final class SyncTests: XCTestCase {
         }
         let pending = await engine.store.pendingOperations.count
         XCTAssertEqual(pending, 1)
+    }
+
+    func testSuperAdminPicksAShopThenSyncsIt() async throws {
+        let server = makeServer()
+        server.role = "super_admin"
+        let engine = makeEngine(server)
+
+        // Before choosing a shop: only the bootstrap, no member download.
+        let first = try await engine.sync()
+        XCTAssertFalse(first.offline)
+        let before = await engine.store.snapshot
+        XCTAssertEqual(before.user?.isSuperAdmin, true)
+        XCTAssertNil(before.shop)
+        XCTAssertTrue(before.members.isEmpty)
+        XCTAssertEqual(server.requests.filter { $0.hasPrefix("GET app/members") }.count, 0)
+
+        try await engine.store.selectShop(server.shop)
+        let second = try await engine.sync()
+        XCTAssertEqual(second.membersUpdated, 3)
+        XCTAssertTrue(server.shopIdsSeen.suffix(4).allSatisfy { $0 == "9" }, "every app/* call names the shop")
+        let after = await engine.store.snapshot
+        XCTAssertEqual(after.selectedShopId, 9)
+        XCTAssertEqual(after.user?.isSuperAdmin, true, "switching shop keeps the session")
+
+        // Super admin can transact like a cashier (server allows it for super_admin).
+        try await engine.store.enqueue(TransactionDraft(memberId: 2, type: .earn, amount: 20, invoiceNo: "SA-1"))
+        let third = try await engine.sync()
+        XCTAssertEqual(third.sent, 1)
+        XCTAssertEqual(server.members[2]?.currentBalance, 20)
+    }
+
+    func testStaffNeverSendShopId() async throws {
+        let server = makeServer()
+        _ = try await makeEngine(server).sync()
+        XCTAssertTrue(server.shopIdsSeen.allSatisfy { $0 == nil })
+    }
+
+    func testCannotSwitchShopWithUnsentOperations() async throws {
+        let server = makeServer()
+        server.role = "super_admin"
+        let engine = makeEngine(server)
+        try await engine.store.selectShop(server.shop)
+        _ = try await engine.sync()
+        server.online = false
+        try await engine.store.enqueue(TransactionDraft(memberId: 1, type: .redeem, count: 10))
+        do {
+            try await engine.store.selectShop(Shop(id: 10, name: "آخر", rewardType: .points))
+            XCTFail("must refuse while an operation is unsent")
+        } catch let error as APIError {
+            XCTAssertEqual(error, .rejected(status: 409, message: "يوجد عمليات لم تُرسل بعد. انتظر المزامنة قبل تغيير المحل."))
+        }
     }
 }

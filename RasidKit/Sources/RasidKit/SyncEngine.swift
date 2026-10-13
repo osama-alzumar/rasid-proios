@@ -35,10 +35,18 @@ public struct SyncEngine: Sendable {
         }
 
         do {
-            try await store.applyBootstrap(api.bootstrap())
-            report.membersUpdated = try await pullMembers()
-            if includeTransactions {
-                try await store.setRecentTransactions(api.recentTransactions())
+            // Only a super admin can have a selected shop, so sending it is
+            // safe before we know the role; the role itself comes from the
+            // bootstrap response, not from what was cached before.
+            let shopId = await store.snapshot.selectedShopId
+            try await store.applyBootstrap(api.bootstrap(shopId: shopId))
+            let isSuperAdmin = await store.snapshot.user?.isSuperAdmin == true
+            // A super admin who has not picked a shop yet has nothing to pull.
+            if !isSuperAdmin || shopId != nil {
+                report.membersUpdated = try await pullMembers(shopId: shopId)
+                if includeTransactions {
+                    try await store.setRecentTransactions(api.recentTransactions(shopId: shopId))
+                }
             }
         } catch let error as APIError where error.isTransient {
             report.offline = true
@@ -72,13 +80,13 @@ public struct SyncEngine: Sendable {
     }
 
     /// Downloads members changed since the last sync (everything the first time).
-    func pullMembers() async throws -> Int {
+    func pullMembers(shopId: Int? = nil) async throws -> Int {
         let since = await store.snapshot.membersSyncedAt
         var afterId = 0
         var updated = 0
         var serverTime: String?
         while true {
-            let page = try await api.members(since: since, afterId: afterId)
+            let page = try await api.members(since: since, afterId: afterId, shopId: shopId)
             if serverTime == nil { serverTime = page.meta.serverTime }
             try await store.applyMembersPage(page)
             updated += page.data.count

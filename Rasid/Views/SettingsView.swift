@@ -12,7 +12,7 @@ struct SettingsView: View {
                 Section("الحساب") {
                     LabeledContent("الاسم", value: user.name)
                     LabeledContent("البريد", value: user.email)
-                    LabeledContent("الصلاحية", value: user.isManager ? "مدير المحل" : "كاشير")
+                    LabeledContent("الصلاحية", value: user.isSuperAdmin ? "مدير النظام" : (user.isManager ? "مدير المحل" : "كاشير"))
                     if let shop = model.shop {
                         LabeledContent("المحل", value: shop.name)
                         if let expires = shop.expiresAt {

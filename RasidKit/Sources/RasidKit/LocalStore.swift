@@ -49,6 +49,8 @@ public struct Snapshot: Codable, Sendable, Equatable {
     /// Server time of the last complete members download (cursor for deltas).
     public var membersSyncedAt: String?
     public var lastSuccessfulSync: Date?
+    /// Super admin only: the shop being worked on. Staff are always on their own shop.
+    public var selectedShopId: Int?
 
     public init() {}
 
@@ -125,6 +127,20 @@ public actor LocalStore {
     public func replaceSession(user: User) throws {
         snapshot = Snapshot()
         snapshot.user = user
+        try save()
+    }
+
+    /// Super admin: switch to another shop. The offline copy belongs to one
+    /// shop, so it is dropped; refuses while operations are still unsent.
+    public func selectShop(_ shop: Shop) throws {
+        guard snapshot.pendingCount == 0 else {
+            throw APIError.rejected(status: 409, message: "يوجد عمليات لم تُرسل بعد. انتظر المزامنة قبل تغيير المحل.")
+        }
+        let user = snapshot.user
+        snapshot = Snapshot()
+        snapshot.user = user
+        snapshot.selectedShopId = shop.id
+        snapshot.shop = shop
         try save()
     }
 
