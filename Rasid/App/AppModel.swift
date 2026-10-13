@@ -181,7 +181,7 @@ final class AppModel: ObservableObject {
             }
         }
         monitor.start(queue: DispatchQueue(label: "rasid.network"))
-        timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.syncSoon() }
         }
     }
