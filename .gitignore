@@ -1,0 +1,8 @@
+*.xcodeproj
+build/
+screenshots/
+.build/
+.swiftpm/
+DerivedData/
+xcuserdata/
+*.p8

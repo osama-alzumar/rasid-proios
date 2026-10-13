@@ -1,0 +1,86 @@
+# XcodeGen spec: `brew install xcodegen && xcodegen generate` produces Rasid.xcodeproj.
+# The .xcodeproj is generated, so edit this file rather than the project in Xcode.
+name: Rasid
+options:
+  bundleIdPrefix: pro.rasid
+  deploymentTarget:
+    iOS: "17.0"
+  developmentLanguage: ar
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+packages:
+  RasidKit:
+    path: RasidKit
+
+settings:
+  base:
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    DEVELOPMENT_TEAM: 525U777XNH
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+
+targets:
+  Rasid:
+    type: application
+    platform: iOS
+    sources:
+      - path: Rasid
+    dependencies:
+      - package: RasidKit
+      - sdk: Charts.framework
+    info:
+      path: Rasid/Info.plist
+      properties:
+        CFBundleDisplayName: رصيد
+        CFBundleDevelopmentRegion: ar
+        CFBundleLocalizations: [ar]
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.business
+        ITSAppUsesNonExemptEncryption: false
+        NSCameraUsageDescription: يستخدم رصيد الكاميرا لمسح رمز بطاقة ولاء العميل عند إضافة النقاط أو الأختام أو استبدال المكافآت.
+        UILaunchScreen:
+          UIColorName: AccentColor
+          UIImageName: Logo
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: pro.rasid.app
+        PRODUCT_NAME: Rasid
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ENABLE_PREVIEWS: YES
+
+  RasidUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: RasidUITests
+    dependencies:
+      - target: Rasid
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: pro.rasid.app.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Rasid
+
+schemes:
+  Rasid:
+    build:
+      targets:
+        Rasid: all
+        RasidUITests: [test]
+    test:
+      targets:
+        - RasidUITests
