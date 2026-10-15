@@ -37,8 +37,9 @@ jobs:
       - name: UI tests on iPhone and iPad
         env:
           # LiveServerTests: App Review demo cashier on the real API (skipped if unset).
-          TEST_RUNNER_RASID_E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
-          TEST_RUNNER_RASID_E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+          # Only on the upload run, so two concurrent runs never write to the demo shop.
+          TEST_RUNNER_RASID_E2E_EMAIL: ${{ github.event_name == 'workflow_dispatch' && secrets.E2E_EMAIL || '' }}
+          TEST_RUNNER_RASID_E2E_PASSWORD: ${{ github.event_name == 'workflow_dispatch' && secrets.E2E_PASSWORD || '' }}
         run: |
           set -o pipefail
           for target in "iPhone.*Pro Max:iphone" "iPad Pro.*13:ipad"; do

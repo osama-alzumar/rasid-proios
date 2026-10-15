@@ -39,7 +39,12 @@ final class LiveServerTests: XCTestCase {
         app.buttons["بحث"].tap()
 
         XCTAssertTrue(app.staticTexts["سارة العتيبي"].waitForExistence(timeout: 15), "customer found")
-        XCTAssertTrue(labelContaining("4 / 6", in: app).waitForExistence(timeout: 5), "demo starting balance")
+        // Read the balance instead of assuming the demo reset value, so a
+        // leftover stamp from an interrupted run cannot fail this test.
+        let balance = app.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "^[0-9]+ / 6$")).firstMatch
+        XCTAssertTrue(balance.waitForExistence(timeout: 5), "stamp balance shown")
+        let before = Int(balance.label.split(separator: " ").first ?? "") ?? -1
+        guard (0..<6).contains(before) else { throw XCTSkip("demo card already full (\(before)/6); reset the demo shop") }
         attach(app, "live-01-member")
 
         app.buttons["إضافة ختم"].tap()
@@ -49,7 +54,7 @@ final class LiveServerTests: XCTestCase {
         invoice.typeText("E2E-CI")
         app.buttons["تأكيد"].tap()
 
-        XCTAssertTrue(labelContaining("5 / 6", in: app).waitForExistence(timeout: 10), "balance updated on screen")
+        XCTAssertTrue(labelContaining("\(before + 1) / 6", in: app).waitForExistence(timeout: 10), "balance went up by exactly one")
         attach(app, "live-02-after-stamp")
 
         // The operation must leave the outbox: History shows nothing pending.
