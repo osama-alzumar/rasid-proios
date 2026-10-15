@@ -63,13 +63,17 @@ public struct BootstrapPayload: Decodable, Sendable {
     public var user: User
     public var shop: Shop?
     public var services: [Service]
+    /// Who a store message reaches (absent for a super admin with no shop).
+    public var walletReach: WalletReach?
 
     enum CodingKeys: String, CodingKey {
         case user, shop, services
+        case walletReach = "wallet_reach"
         case serverTime = "server_time"
     }
 
-    public init(serverTime: String, user: User, shop: Shop?, services: [Service]) {
+    public init(serverTime: String, user: User, shop: Shop?, services: [Service], walletReach: WalletReach? = nil) {
+        self.walletReach = walletReach
         self.serverTime = serverTime
         self.user = user
         self.shop = shop
@@ -215,6 +219,15 @@ public struct APIClient: Sendable {
         return TransactionResult(transaction: payload.data, alreadyApplied: payload.alreadyApplied ?? false)
     }
 
+    /// POST shops/{id}/push-message — sets the store message on every
+    /// customer's Wallet card; Wallet shows it as a lock-screen notification.
+    /// Re-signing every card can take a while, hence the long timeout.
+    public func sendStoreMessage(shopId: Int, message: String) async throws -> WalletReach? {
+        struct Payload: Decodable { let reach: WalletReach? }
+        let payload: Payload = try await request("POST", "shops/\(shopId)/push-message", body: ["message": AnyEncodable(message)], envelope: false, timeout: 120)
+        return payload.reach
+    }
+
     public func dashboardStats(period: String) async throws -> DashboardStats {
         try await request("GET", "dashboard/stats", query: [URLQueryItem(name: "period", value: period)], envelope: true)
     }
@@ -233,10 +246,10 @@ public struct APIClient: Sendable {
         }
     }
 
-    private func request<T: Decodable>(_ method: String, _ path: String, query: [URLQueryItem] = [], body: (any Encodable)? = nil, envelope: Bool) async throws -> T {
+    private func request<T: Decodable>(_ method: String, _ path: String, query: [URLQueryItem] = [], body: (any Encodable)? = nil, envelope: Bool, timeout: TimeInterval = 20) async throws -> T {
         var components = URLComponents(url: baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
         if !query.isEmpty { components.queryItems = query }
-        var request = URLRequest(url: components.url!, timeoutInterval: 20)
+        var request = URLRequest(url: components.url!, timeoutInterval: timeout)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("ar", forHTTPHeaderField: "Accept-Language")

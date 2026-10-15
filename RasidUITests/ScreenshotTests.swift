@@ -80,4 +80,20 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(app.buttons["تسجيل الدخول"].exists)
         snap(app, "00-login")
     }
+
+    func testMerchantSendsStoreMessage() {
+        let app = launch(["-RasidManager"])
+        let compose = app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "رسالة للعملاء")).firstMatch
+        XCTAssertTrue(compose.waitForExistence(timeout: 10), "merchant home offers the customer message")
+        snap(app, "08-merchant-home")
+        compose.tap()
+
+        let editor = app.textViews.firstMatch
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        editor.tap()
+        editor.typeText("عرض نهاية الأسبوع: القهوة الثانية مجاناً")
+        XCTAssertTrue(app.staticTexts["كيف تظهر عند العميل"].waitForExistence(timeout: 5), "live lock-screen preview")
+        snap(app, "09-store-message")
+    }
 }
+

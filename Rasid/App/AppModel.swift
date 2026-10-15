@@ -242,6 +242,23 @@ final class AppModel: ObservableObject {
         try await api.dashboardStats(period: period)
     }
 
+    // MARK: Store messages
+
+    /// Shop managers message their own shop's customers; the platform owner
+    /// any shop they are working on. Cashiers cannot (server enforces it too).
+    var canMessageCustomers: Bool {
+        guard let user, shop != nil else { return false }
+        return user.isManager || (user.isSuperAdmin && snapshot.selectedShopId != nil)
+    }
+
+    /// Sends the message to every customer's Wallet card (online only).
+    func sendStoreMessage(_ message: String) async throws -> WalletReach? {
+        guard let shop else { throw APIError.rejected(status: 400, message: "لا يوجد محل محدد.") }
+        let reach = try await api.sendStoreMessage(shopId: shop.id, message: message)
+        await syncNow()
+        return reach
+    }
+
     // MARK: Super admin
 
     func platformStats(period: String) async throws -> PlatformStats {

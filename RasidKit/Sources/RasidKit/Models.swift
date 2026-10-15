@@ -520,3 +520,23 @@ public struct PlatformStats: Decodable, Sendable, Equatable {
         topActiveShops = try c.decodeIfPresent([TopShop].self, forKey: .topActiveShops) ?? []
     }
 }
+
+/// Customers of a shop holding its Apple Wallet card, and the devices
+/// registered for that card's updates — the audience of a store message.
+public struct WalletReach: Codable, Sendable, Equatable {
+    public var cards: Int
+    public var devices: Int
+
+    public init(cards: Int, devices: Int) {
+        self.cards = cards
+        self.devices = devices
+    }
+
+    enum CodingKeys: String, CodingKey { case cards, devices }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        cards = try c.flexibleIntIfPresent(.cards) ?? 0
+        devices = try c.flexibleIntIfPresent(.devices) ?? 0
+    }
+}

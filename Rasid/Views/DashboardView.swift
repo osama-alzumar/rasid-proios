@@ -15,6 +15,28 @@ struct DashboardView: View {
         ScrollView {
             VStack(spacing: 16) {
                 SyncStatusBar()
+                if model.canMessageCustomers {
+                    NavigationLink {
+                        StoreMessageView()
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "paperplane.fill")
+                                .font(.title3)
+                                .foregroundStyle(.white)
+                                .frame(width: 44, height: 44)
+                                .background(Theme.brand.gradient, in: RoundedRectangle(cornerRadius: 12))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("رسالة للعملاء").font(.headline).foregroundStyle(.primary)
+                                Text(model.snapshot.walletReach.map { "تصل إشعاراً إلى \($0.devices) جهاز" } ?? "تصل إشعاراً على بطاقتهم في المحفظة")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.left").foregroundStyle(.tertiary)
+                        }
+                        .cardStyle()
+                    }
+                    .buttonStyle(.plain)
+                }
                 Picker("الفترة", selection: $period) {
                     Text("اليوم").tag("today")
                     Text("٧ أيام").tag("week")

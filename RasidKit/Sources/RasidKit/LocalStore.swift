@@ -43,6 +43,7 @@ public struct Snapshot: Codable, Sendable, Equatable {
     public var user: User?
     public var shop: Shop?
     public var services: [Service] = []
+    public var walletReach: WalletReach?
     public var members: [Int: Member] = [:]
     public var recentTransactions: [ServerTransaction] = []
     public var pending: [PendingOperation] = []
@@ -155,6 +156,7 @@ public actor LocalStore {
         snapshot.user = payload.user
         snapshot.shop = payload.shop
         snapshot.services = payload.services
+        snapshot.walletReach = payload.walletReach
         try save()
     }
 

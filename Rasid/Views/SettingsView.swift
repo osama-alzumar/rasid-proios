@@ -22,6 +22,20 @@ struct SettingsView: View {
                 }
             }
 
+            if model.canMessageCustomers {
+                Section {
+                    NavigationLink {
+                        StoreMessageView()
+                    } label: {
+                        Label("رسالة للعملاء", systemImage: "paperplane.fill")
+                    }
+                } header: {
+                    Text("التواصل مع العملاء")
+                } footer: {
+                    Text("ترسل إشعاراً لكل عميل أضاف بطاقة المحل إلى Apple Wallet.")
+                }
+            }
+
             Section("المظهر") {
                 Picker("المظهر", selection: $appearance) {
                     ForEach(Appearance.allCases) { option in

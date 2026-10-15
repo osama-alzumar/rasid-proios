@@ -23,6 +23,7 @@ final class FakeServer: HTTPTransport, @unchecked Sendable {
     var requests: [String] = []
     var expiredShop = false
     var role = "cashier"
+    var storeMessage: String?
     /// shop_id query values received on app/* endpoints.
     var shopIdsSeen: [String?] = []
 
@@ -67,6 +68,7 @@ final class FakeServer: HTTPTransport, @unchecked Sendable {
             return respond(200, ["success": true, "data": [
                 "server_time": "t\(clock)", "user": userJSON, "shop": noShop ? NSNull() : shopJSON as Any,
                 "services": [["id": 7, "name": "غسيل", "price": "25.00", "is_active": true, "sort_order": 1]],
+                "wallet_reach": noShop ? NSNull() : ["cards": "3", "devices": 5] as Any,
             ]])
         case ("GET", "app/members"):
             let since = query["since"].flatMap { Int($0.dropFirst()) }
@@ -80,6 +82,14 @@ final class FakeServer: HTTPTransport, @unchecked Sendable {
                 "next_after_id": hasMore ? page.last!.id as Any : NSNull(),
                 "all_ids": afterId == 0 ? members.keys.sorted() as Any : NSNull(),
             ]])
+        case ("POST", "shops/\(shop.id)/push-message"):
+            guard role != "cashier" else { return respond(403, ["message": "لا تملك صلاحية إرسال رسائل لعملاء هذا المحل."]) }
+            let body = try JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any]
+            guard let message = body["message"] as? String, !message.isEmpty else {
+                return respond(422, ["message": "The given data was invalid.", "errors": ["message": ["الرسالة مطلوبة."]]])
+            }
+            storeMessage = message
+            return respond(200, ["success": true, "message": "تمت عملية الجدولة", "reach": ["cards": 3, "devices": 5]])
         case ("GET", "app/transactions"):
             return respond(200, ["success": true, "data": transactions.reversed().map { txJSON($0.tx) }])
         case ("POST", "transactions"):
@@ -472,6 +482,33 @@ final class SyncTests: XCTestCase {
             XCTFail("must refuse while an operation is unsent")
         } catch let error as APIError {
             XCTAssertEqual(error, .rejected(status: 409, message: "يوجد عمليات لم تُرسل بعد. انتظر المزامنة قبل تغيير المحل."))
+        }
+    }
+
+    func testStoreMessageReachAndPermissions() async throws {
+        let server = makeServer()
+        let engine = makeEngine(server)
+        _ = try await engine.sync()
+        let reach = await engine.store.snapshot.walletReach
+        XCTAssertEqual(reach, WalletReach(cards: 3, devices: 5), "bootstrap carries the Wallet audience (numbers may arrive as strings)")
+
+        do {
+            _ = try await engine.api.sendStoreMessage(shopId: 9, message: "عرض اليوم")
+            XCTFail("a cashier must not be able to message customers")
+        } catch let error as APIError {
+            XCTAssertEqual(error, .rejected(status: 403, message: "لا تملك صلاحية إرسال رسائل لعملاء هذا المحل."))
+        }
+
+        server.role = "shop_manager"
+        let sent = try await engine.api.sendStoreMessage(shopId: 9, message: "عرض اليوم: القهوة الثانية مجاناً")
+        XCTAssertEqual(sent, WalletReach(cards: 3, devices: 5))
+        XCTAssertEqual(server.storeMessage, "عرض اليوم: القهوة الثانية مجاناً")
+
+        do {
+            _ = try await engine.api.sendStoreMessage(shopId: 9, message: "")
+            XCTFail("empty message must be refused")
+        } catch let error as APIError {
+            XCTAssertEqual(error, .rejected(status: 422, message: "الرسالة مطلوبة."))
         }
     }
 }
