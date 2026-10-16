@@ -540,3 +540,42 @@ public struct WalletReach: Codable, Sendable, Equatable {
         devices = try c.flexibleIntIfPresent(.devices) ?? 0
     }
 }
+
+/// A platform announcement written by the super admin (GET /system-messages/pending).
+public struct SystemMessage: Codable, Sendable, Equatable, Identifiable {
+    public enum Tone: String, Codable, Sendable { case info, success, warning, danger }
+
+    public var id: Int
+    public var title: String
+    public var body: String
+    public var type: String
+    public var tone: Tone
+    /// Must be acknowledged with "فهمت"; cannot just be closed.
+    public var isForced: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, body, type, tone
+        case isForced = "is_forced"
+    }
+
+    public init(id: Int, title: String, body: String, type: String = "info", tone: Tone = .info, isForced: Bool = false) {
+        self.id = id
+        self.title = title
+        self.body = body
+        self.type = type
+        self.tone = tone
+        self.isForced = isForced
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.flexibleInt(.id)
+        title = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
+        body = try c.decodeIfPresent(String.self, forKey: .body) ?? ""
+        type = try c.decodeIfPresent(String.self, forKey: .type) ?? "info"
+        let rawTone = try c.decodeIfPresent(String.self, forKey: .tone) ?? ""
+        // Older messages carry only a type ("urgent", "warning", ...).
+        tone = Tone(rawValue: rawTone) ?? (type == "urgent" ? .danger : type == "warning" ? .warning : .info)
+        isForced = (try? c.decodeIfPresent(Bool.self, forKey: .isForced)) ?? false
+    }
+}

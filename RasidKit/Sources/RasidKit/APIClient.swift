@@ -228,6 +228,18 @@ public struct APIClient: Sendable {
         return payload.reach
     }
 
+    /// Announcements the server wants this user to see now. The server marks
+    /// them as shown, so call it once per login / app launch, not on every sync.
+    public func pendingSystemMessages() async throws -> [SystemMessage] {
+        try await request("GET", "system-messages/pending", envelope: true)
+    }
+
+    /// The user pressed "فهمت".
+    public func acknowledgeSystemMessage(id: Int) async throws {
+        struct Empty: Encodable {}
+        let _: IgnoredBody = try await request("POST", "system-messages/\(id)/ack", body: Empty(), envelope: false)
+    }
+
     public func dashboardStats(period: String) async throws -> DashboardStats {
         try await request("GET", "dashboard/stats", query: [URLQueryItem(name: "period", value: period)], envelope: true)
     }

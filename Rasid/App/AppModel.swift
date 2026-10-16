@@ -21,6 +21,9 @@ final class AppModel: ObservableObject {
     /// The platform owner's session is locked behind Face ID / the device
     /// passcode whenever the app comes back to the foreground.
     @Published private(set) var isLocked = false
+    /// Platform announcements waiting to be shown, first one on screen.
+    @Published private(set) var systemMessages: [SystemMessage] = []
+    private var fetchedSystemMessages = false
 
     private var store: LocalStore
     private var api: APIClient
@@ -57,11 +60,17 @@ final class AppModel: ObservableObject {
         isLocked = phase == .loggedIn && !demo && UserDefaults.standard.bool(forKey: Self.ownerSessionKey)
 
         if demo {
-            Task { await loadDemo() }
+            Task {
+                await loadDemo()
+                await fetchSystemMessages()
+            }
         } else {
             Task { await reloadSnapshot() }
             startMonitoring()
-            if phase == .loggedIn { syncSoon() }
+            if phase == .loggedIn {
+                syncSoon()
+                fetchSystemMessagesIfNeeded()
+            }
         }
     }
 
@@ -95,6 +104,7 @@ final class AppModel: ObservableObject {
         await reloadSnapshot()
         phase = .loggedIn
         await syncNow()
+        await fetchSystemMessages()
     }
 
     func logout() async {
@@ -107,7 +117,45 @@ final class AppModel: ObservableObject {
         await reloadSnapshot()
         blockingMessage = nil
         lastSyncError = nil
+        systemMessages = []
+        fetchedSystemMessages = false
         phase = .loggedOut
+    }
+
+    // MARK: System messages
+
+    /// Like the website, announcements are fetched at login — and, since the
+    /// app keeps the user signed in, once each time the app is launched.
+    func fetchSystemMessagesIfNeeded() {
+        guard !fetchedSystemMessages, phase == .loggedIn else { return }
+        Task { await fetchSystemMessages() }
+    }
+
+    private func fetchSystemMessages() async {
+        if isDemo {
+            if ProcessInfo.processInfo.arguments.contains("-RasidSystemMessage") {
+                systemMessages = [SystemMessage(id: 1, title: "تحديث مهم", body: "أضفنا ميزة رسالة للعملاء: أرسل عروضك لعملائك فتصلهم إشعاراً على بطاقة المحفظة.", tone: .success, isForced: true)]
+            }
+            return
+        }
+        do {
+            systemMessages = try await api.pendingSystemMessages()
+            fetchedSystemMessages = true
+        } catch {
+            // Retried on the next launch; announcements never block the app.
+        }
+    }
+
+    /// "فهمت": recorded on the server so display rules (once / first login) hold.
+    func acknowledgeSystemMessage(_ message: SystemMessage) {
+        systemMessages.removeAll { $0.id == message.id }
+        guard !isDemo else { return }
+        Task { try? await api.acknowledgeSystemMessage(id: message.id) }
+    }
+
+    /// Closed without confirming (only allowed when the message is not forced).
+    func dismissSystemMessage(_ message: SystemMessage) {
+        systemMessages.removeAll { $0.id == message.id }
     }
 
     // MARK: Owner lock

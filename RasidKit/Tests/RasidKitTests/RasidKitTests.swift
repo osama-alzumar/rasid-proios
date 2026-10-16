@@ -24,6 +24,7 @@ final class FakeServer: HTTPTransport, @unchecked Sendable {
     var expiredShop = false
     var role = "cashier"
     var storeMessage: String?
+    var acknowledged: [Int] = []
     /// shop_id query values received on app/* endpoints.
     var shopIdsSeen: [String?] = []
 
@@ -90,6 +91,14 @@ final class FakeServer: HTTPTransport, @unchecked Sendable {
             }
             storeMessage = message
             return respond(200, ["success": true, "message": "تمت عملية الجدولة", "reach": ["cards": 3, "devices": 5]])
+        case ("GET", "system-messages/pending"):
+            return respond(200, ["success": true, "data": [
+                ["id": 10, "title": "صيانة", "body": "توقف مؤقت الليلة", "type": "urgent", "tone": "success", "is_forced": true, "display_rule": "every_login"],
+                ["id": 11, "title": "ميزة جديدة", "body": "رسائل العملاء", "type": "warning", "tone": NSNull(), "is_forced": false],
+            ]])
+        case ("POST", "system-messages/10/ack"):
+            acknowledged.append(10)
+            return respond(200, ["success": true])
         case ("GET", "app/transactions"):
             return respond(200, ["success": true, "data": transactions.reversed().map { txJSON($0.tx) }])
         case ("POST", "transactions"):
@@ -511,4 +520,18 @@ final class SyncTests: XCTestCase {
             XCTAssertEqual(error, .rejected(status: 422, message: "الرسالة مطلوبة."))
         }
     }
+
+    func testSystemMessagesDecodeAndAcknowledge() async throws {
+        let server = makeServer()
+        let api = APIClient(token: "good-token", transport: server)
+        let messages = try await api.pendingSystemMessages()
+        XCTAssertEqual(messages.map(\.id), [10, 11])
+        XCTAssertEqual(messages[0].tone, .success)
+        XCTAssertTrue(messages[0].isForced)
+        XCTAssertEqual(messages[1].tone, .warning, "no tone → derived from type")
+        XCTAssertFalse(messages[1].isForced)
+        try await api.acknowledgeSystemMessage(id: 10)
+        XCTAssertEqual(server.acknowledged, [10])
+    }
 }
+

@@ -18,6 +18,12 @@ struct RootView: View {
             }
         }
         .animation(.default, value: model.phase)
+        .sheet(item: Binding(
+            get: { model.isLocked ? nil : model.systemMessages.first },
+            set: { if $0 == nil, let shown = model.systemMessages.first, !shown.isForced { model.dismissSystemMessage(shown) } }
+        )) { message in
+            SystemMessageView(message: message)
+        }
     }
 }
 

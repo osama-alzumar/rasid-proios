@@ -95,5 +95,14 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["كيف تظهر عند العميل"].waitForExistence(timeout: 5), "live lock-screen preview")
         snap(app, "09-store-message")
     }
+
+    func testSystemMessageShowsAndAcknowledges() {
+        let app = launch(["-RasidSystemMessage"])
+        XCTAssertTrue(app.staticTexts["تحديث مهم"].waitForExistence(timeout: 10), "announcement shown at launch")
+        snap(app, "10-system-message")
+        XCTAssertFalse(app.buttons["إغلاق"].exists, "a forced message has no close button")
+        app.buttons["فهمت"].tap()
+        XCTAssertTrue(app.staticTexts["تحديث مهم"].waitForNonExistence(timeout: 5), "gone after فهمت")
+    }
 }
 
