@@ -26,6 +26,7 @@ import pro.rasid.core.MembersPage
 import pro.rasid.core.PendingOperation
 import pro.rasid.core.PlatformStats
 import pro.rasid.core.RewardType
+import pro.rasid.core.SelfScanSettings
 import pro.rasid.core.Role
 import pro.rasid.core.ServerTransaction
 import pro.rasid.core.Service
@@ -221,6 +222,26 @@ class AppModel private constructor(private val context: Context, val isDemo: Boo
     suspend fun sendStoreMessage(message: String): WalletReach? {
         val s = shop ?: throw ApiError.Rejected(400, "لا يوجد محل محدد.")
         val reach = api.sendStoreMessage(s.id, message); syncNow(); return reach
+    }
+
+    /** Same people who message customers: the shop's manager and the owner. */
+    val canManageSelfScan get() = canMessageCustomers
+
+    private var demoSelfScan = SelfScanSettings(enabled = false, available = true)
+
+    suspend fun selfScan(): SelfScanSettings {
+        val s = shop ?: throw ApiError.Rejected(400, "لا يوجد محل محدد.")
+        return if (isDemo) demoSelfScan else api.selfScan(s.id)
+    }
+
+    suspend fun setSelfScan(enabled: Boolean, newCode: Boolean = false): SelfScanSettings {
+        val s = shop ?: throw ApiError.Rejected(400, "لا يوجد محل محدد.")
+        if (isDemo) {
+            demoSelfScan = demoSelfScan.copy(enabled = enabled, url = if (enabled) "https://rasid.pro/backend/s/demo" else null,
+                posterUrl = if (enabled) "https://rasid.pro/backend/s/demo/poster" else null)
+            return demoSelfScan
+        }
+        return api.updateSelfScan(s.id, enabled, newCode)
     }
 
     // ---- demo (CI screenshots only; debug builds) ----

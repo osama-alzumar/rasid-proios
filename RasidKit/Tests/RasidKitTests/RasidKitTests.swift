@@ -24,6 +24,8 @@ final class FakeServer: HTTPTransport, @unchecked Sendable {
     var expiredShop = false
     var role = "cashier"
     var storeMessage: String?
+    var selfScanEnabled = false
+    var scanCode = "abc123"
     var acknowledged: [Int] = []
     /// shop_id query values received on app/* endpoints.
     var shopIdsSeen: [String?] = []
@@ -91,6 +93,18 @@ final class FakeServer: HTTPTransport, @unchecked Sendable {
             }
             storeMessage = message
             return respond(200, ["success": true, "message": "تمت عملية الجدولة", "reach": ["cards": 3, "devices": 5]])
+        case ("GET", "shops/\(shop.id)/self-scan"), ("PUT", "shops/\(shop.id)/self-scan"):
+            guard role != "cashier" else { return respond(403, ["message": "لا تملك صلاحية إدارة باركود هذا المحل."]) }
+            if request.httpMethod == "PUT" {
+                let body = try JSONSerialization.jsonObject(with: request.httpBody!) as! [String: Any]
+                selfScanEnabled = body["enabled"] as? Bool ?? false
+                if body["new_code"] as? Bool == true { scanCode = "new456" }
+            }
+            let url = "https://rasid.pro/backend/s/\(scanCode)"
+            return respond(200, ["success": true, "data": [
+                "enabled": selfScanEnabled, "available": true, "reward_type": "stamps", "daily_limit": "1",
+                "url": selfScanEnabled ? url as Any : NSNull(), "poster_url": selfScanEnabled ? url + "/poster" as Any : NSNull(),
+            ]])
         case ("GET", "system-messages/pending"):
             return respond(200, ["success": true, "data": [
                 ["id": 10, "title": "صيانة", "body": "توقف مؤقت الليلة", "type": "urgent", "tone": "success", "is_forced": true, "display_rule": "every_login"],
@@ -541,6 +555,30 @@ final class SyncTests: XCTestCase {
         } catch let error as APIError {
             XCTAssertEqual(error, .rejected(status: 422, message: "الرسالة مطلوبة."))
         }
+    }
+
+    func testSelfScanQRForManagersOnly() async throws {
+        let server = makeServer()
+        let engine = makeEngine(server)
+        _ = try await engine.sync()
+        do {
+            _ = try await engine.api.selfScan(shopId: 9)
+            XCTFail("a cashier must not manage the shop QR")
+        } catch let error as APIError {
+            XCTAssertEqual(error, .rejected(status: 403, message: "لا تملك صلاحية إدارة باركود هذا المحل."))
+        }
+
+        server.role = "shop_manager"
+        let off = try await engine.api.selfScan(shopId: 9)
+        XCTAssertEqual(off, SelfScanSettings(enabled: false, available: true, dailyLimit: 1))
+        let on = try await engine.api.updateSelfScan(shopId: 9, enabled: true)
+        XCTAssertEqual(on.url, "https://rasid.pro/backend/s/abc123")
+        XCTAssertEqual(on.posterURL, "https://rasid.pro/backend/s/abc123/poster")
+        let renewed = try await engine.api.updateSelfScan(shopId: 9, enabled: true, newCode: true)
+        XCTAssertEqual(renewed.url, "https://rasid.pro/backend/s/new456", "a new code replaces the old QR")
+        let disabled = try await engine.api.updateSelfScan(shopId: 9, enabled: false)
+        XCTAssertFalse(disabled.enabled)
+        XCTAssertNil(disabled.url)
     }
 
     func testSystemMessagesDecodeAndAcknowledge() async throws {

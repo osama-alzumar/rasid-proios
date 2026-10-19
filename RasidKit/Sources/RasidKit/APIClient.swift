@@ -228,6 +228,17 @@ public struct APIClient: Sendable {
         return payload.reach
     }
 
+    public func selfScan(shopId: Int) async throws -> SelfScanSettings {
+        try await request("GET", "shops/\(shopId)/self-scan", envelope: true)
+    }
+
+    /// Turns the shop's self-scan QR on or off; newCode replaces the QR (the old one stops working).
+    public func updateSelfScan(shopId: Int, enabled: Bool, newCode: Bool = false) async throws -> SelfScanSettings {
+        var body: [String: AnyEncodable] = ["enabled": AnyEncodable(enabled)]
+        if newCode { body["new_code"] = AnyEncodable(true) }
+        return try await request("PUT", "shops/\(shopId)/self-scan", body: body, envelope: true)
+    }
+
     /// Announcements the server wants this user to see now. The server marks
     /// them as shown, so call it once per login / app launch, not on every sync.
     public func pendingSystemMessages() async throws -> [SystemMessage] {

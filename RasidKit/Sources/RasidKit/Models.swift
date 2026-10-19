@@ -579,3 +579,38 @@ public struct SystemMessage: Codable, Sendable, Equatable, Identifiable {
         isForced = (try? c.decodeIfPresent(Bool.self, forKey: .isForced)) ?? false
     }
 }
+
+/// The shop's self-scan QR: customers scan it and get one stamp/point a day.
+public struct SelfScanSettings: Codable, Sendable, Equatable {
+    public var enabled: Bool
+    /// False for visits shops (a visit is a prepaid balance).
+    public var available: Bool
+    public var dailyLimit: Int
+    /// What the QR encodes; nil while self-scan is off.
+    public var url: String?
+    /// Printable A5 poster with the QR and instructions.
+    public var posterURL: String?
+
+    public init(enabled: Bool, available: Bool, dailyLimit: Int = 1, url: String? = nil, posterURL: String? = nil) {
+        self.enabled = enabled
+        self.available = available
+        self.dailyLimit = dailyLimit
+        self.url = url
+        self.posterURL = posterURL
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case enabled, available, url
+        case dailyLimit = "daily_limit"
+        case posterURL = "poster_url"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
+        available = try c.decodeIfPresent(Bool.self, forKey: .available) ?? true
+        dailyLimit = (try? c.flexibleIntIfPresent(.dailyLimit)) ?? 1
+        url = try c.decodeIfPresent(String.self, forKey: .url)
+        posterURL = try c.decodeIfPresent(String.self, forKey: .posterURL)
+    }
+}

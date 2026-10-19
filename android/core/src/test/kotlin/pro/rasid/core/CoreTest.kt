@@ -168,6 +168,12 @@ class RewardRulesTest {
         assertEquals("4 / 6", BalanceSummary.of(stamps, 4).headline)
         assertTrue(BalanceSummary.of(stamps, 6).rewardAvailable)
     }
+    @Test fun selfScanSettingsDecode() {
+        val on = SelfScanSettings.from(Json.parseToJsonElement("""{"enabled":true,"available":true,"daily_limit":"1","url":"https://rasid.pro/backend/s/abc","poster_url":"https://rasid.pro/backend/s/abc/poster"}""") as JsonObject)
+        assertEquals(SelfScanSettings(true, true, 1, "https://rasid.pro/backend/s/abc", "https://rasid.pro/backend/s/abc/poster"), on)
+        val off = SelfScanSettings.from(Json.parseToJsonElement("""{"enabled":false,"available":false,"url":null,"poster_url":null}""") as JsonObject)
+        assertEquals(SelfScanSettings(false, false), off)
+    }
     @Test fun lenientDecoding() {
         val shop = Shop.from(Json.parseToJsonElement("""{"id":"5","name":"م","reward_type":"stamps","number_of_stamps":"6","min_stamp_amount":"15.00","points_per_amount":"1.50"}""") as JsonObject)
         assertEquals(5, shop.id); assertEquals(6, shop.numberOfStamps); assertEquals(15.0, shop.minStampAmount); assertEquals(1.5, shop.pointsPerAmount)

@@ -201,6 +201,13 @@ data class WalletReach(val cards: Int, val devices: Int) {
     }
 }
 
+/** The shop's self-scan QR: customers scan it and get one stamp/point a day. */
+data class SelfScanSettings(val enabled: Boolean, val available: Boolean, val dailyLimit: Int = 1, val url: String? = null, val posterUrl: String? = null) {
+    companion object {
+        fun from(o: JsonObject) = SelfScanSettings(o.bool("enabled") ?: false, o.bool("available") ?: true, o.int("daily_limit") ?: 1, o.str("url"), o.str("poster_url"))
+    }
+}
+
 data class Metric(val value: Int, val trend: Double?) {
     companion object {
         fun from(o: JsonObject?) = Metric(o?.int("value") ?: 0, o?.double("trend"))

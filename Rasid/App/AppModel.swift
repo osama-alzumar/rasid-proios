@@ -307,6 +307,30 @@ final class AppModel: ObservableObject {
         return reach
     }
 
+    // MARK: Self-scan QR
+
+    /// Same people who message customers: the shop's manager and the owner.
+    var canManageSelfScan: Bool { canMessageCustomers }
+
+    func selfScan() async throws -> SelfScanSettings {
+        guard let shop else { throw APIError.rejected(status: 400, message: "لا يوجد محل محدد.") }
+        if isDemo { return demoSelfScan }
+        return try await api.selfScan(shopId: shop.id)
+    }
+
+    func setSelfScan(enabled: Bool, newCode: Bool = false) async throws -> SelfScanSettings {
+        guard let shop else { throw APIError.rejected(status: 400, message: "لا يوجد محل محدد.") }
+        if isDemo {
+            demoSelfScan.enabled = enabled
+            demoSelfScan.url = enabled ? "https://rasid.pro/backend/s/demo" : nil
+            demoSelfScan.posterURL = enabled ? "https://rasid.pro/backend/s/demo/poster" : nil
+            return demoSelfScan
+        }
+        return try await api.updateSelfScan(shopId: shop.id, enabled: enabled, newCode: newCode)
+    }
+
+    private var demoSelfScan = SelfScanSettings(enabled: false, available: true)
+
     // MARK: Super admin
 
     func platformStats(period: String) async throws -> PlatformStats {

@@ -23,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Apartment
 import androidx.compose.material.icons.filled.CardGiftcard
@@ -323,7 +324,9 @@ fun SettingsScreen(model: AppModel) {
     var composing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val uri = LocalUriHandler.current
+    var selfScan by remember { mutableStateOf(false) }
     if (composing) { StoreMessageScreen(model) { composing = false }; return }
+    if (selfScan) { SelfScanScreen(model) { selfScan = false }; return }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Title("الإعدادات")
@@ -339,6 +342,10 @@ fun SettingsScreen(model: AppModel) {
             Text("التواصل مع العملاء", fontWeight = FontWeight.Bold)
             Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.AutoMirrored.Filled.Send, null, tint = Brand.green); Spacer(Modifier.width(8.dp)); Text("رسالة للعملاء") }
             Text("ترسل إشعاراً لكل عميل أضاف بطاقة المحل إلى Apple Wallet.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (model.canManageSelfScan) RasidCard(Modifier.clickable { selfScan = true }.testTag("selfScanEntry")) {
+            Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.QrCode, null, tint = Brand.green); Spacer(Modifier.width(8.dp)); Text("باركود المسح الذاتي", fontWeight = FontWeight.Bold) }
+            Text("يعلّق في المحل، والعميل يصوّره ويضيف ختمه بنفسه.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         RasidCard {
             Text("المظهر", fontWeight = FontWeight.Bold)

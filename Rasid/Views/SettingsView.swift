@@ -29,10 +29,17 @@ struct SettingsView: View {
                     } label: {
                         Label("رسالة للعملاء", systemImage: "paperplane.fill")
                     }
+                    if model.canManageSelfScan {
+                        NavigationLink {
+                            SelfScanView()
+                        } label: {
+                            Label("باركود المسح الذاتي", systemImage: "qrcode")
+                        }
+                    }
                 } header: {
                     Text("التواصل مع العملاء")
                 } footer: {
-                    Text("ترسل إشعاراً لكل عميل أضاف بطاقة المحل إلى Apple Wallet.")
+                    Text("الرسالة تصل إشعاراً لكل عميل أضاف بطاقة المحل إلى Apple Wallet. والباركود يعلّق في المحل ليضيف العميل ختمه بنفسه.")
                 }
             }
 

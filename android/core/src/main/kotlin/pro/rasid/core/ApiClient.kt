@@ -129,6 +129,12 @@ class ApiClient(
     suspend fun sendStoreMessage(shopId: Int, message: String): WalletReach? =
         WalletReach.from(request("POST", "shops/$shopId/push-message", body = mapOf("message" to message), timeout = 120).obj("reach"))
 
+    suspend fun selfScan(shopId: Int): SelfScanSettings = SelfScanSettings.from(request("GET", "shops/$shopId/self-scan").obj("data") ?: JsonObject(emptyMap()))
+
+    /** Turns the shop's self-scan QR on or off; newCode replaces the QR (the old one stops working). */
+    suspend fun updateSelfScan(shopId: Int, enabled: Boolean, newCode: Boolean = false): SelfScanSettings =
+        SelfScanSettings.from(request("PUT", "shops/$shopId/self-scan", body = buildMap { put("enabled", enabled); if (newCode) put("new_code", true) }).obj("data") ?: JsonObject(emptyMap()))
+
     suspend fun pendingSystemMessages(): List<SystemMessage> = request("GET", "system-messages/pending").arr("data").map(SystemMessage::from)
     suspend fun acknowledgeSystemMessage(id: Int) { request("POST", "system-messages/$id/ack", body = emptyMap<String, Any>()) }
 
