@@ -14,7 +14,7 @@ android {
         targetSdk = 35
         // CI passes the run number so every published APK upgrades the previous one.
         versionCode = (System.getenv("RASID_VERSION_CODE") ?: "1").toInt()
-        versionName = "1.2.0"
+        versionName = "1.3.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

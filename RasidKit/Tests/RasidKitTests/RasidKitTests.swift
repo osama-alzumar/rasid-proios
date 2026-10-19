@@ -223,6 +223,28 @@ final class RewardRulesTests: XCTestCase {
         XCTAssertEqual(json["points_change"] as? Int, 20)
         XCTAssertNil(json["invoice_no"])
     }
+
+    func testQuickScanAddsOneStampWithoutInvoiceUntilTheCardIsFull() throws {
+        guard case .add(let draft) = RewardRules.quickScan(memberId: 3, shop: stampsShop, balance: 2) else {
+            return XCTFail("expected a stamp to be added")
+        }
+        XCTAssertEqual(RewardRules.evaluate(draft, shop: stampsShop, balance: 2, service: nil), .success(1))
+        let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(RewardRules.requestBody(for: draft, clientUUID: UUID()))) as! [String: Any]
+        XCTAssertEqual(json["quick_scan"] as? Bool, true)
+        XCTAssertNil(json["invoice_no"])
+
+        XCTAssertEqual(RewardRules.quickScan(memberId: 3, shop: stampsShop, balance: 6), .rewardReady)
+        XCTAssertEqual(RewardRules.evaluate(draft, shop: stampsShop, balance: 6, service: nil), .failure(.cardFull))
+        XCTAssertEqual(RewardRules.quickScan(memberId: 3, shop: minStampShop, balance: 0), .notSupported)
+        XCTAssertEqual(RewardRules.quickScan(memberId: 3, shop: pointsShop, balance: 0), .notSupported)
+        XCTAssertEqual(RewardRules.quickScan(memberId: 3, shop: visitsShop, balance: 0), .notSupported)
+    }
+
+    func testDraftsQueuedByOlderBuildsStillDecode() throws {
+        let old = #"{"memberId":3,"type":"earn","count":1,"invoiceNo":"7"}"#
+        let draft = try JSONDecoder().decode(TransactionDraft.self, from: Data(old.utf8))
+        XCTAssertNil(draft.quickScan)
+    }
 }
 
 final class DecodingTests: XCTestCase {

@@ -192,6 +192,11 @@ class AppModel private constructor(private val context: Context, val isDemo: Boo
 
     fun searchMembers(query: String) = store.searchMembers(query)
 
+    /** Quick scan: scanning a card adds one stamp straight away (per device). */
+    var quickScanEnabled: Boolean
+        get() = prefs.getBoolean("quickScanEnabled", true)
+        set(value) = prefs.edit().putBoolean("quickScanEnabled", value).apply()
+
     /** Records the operation on the device immediately, then tries to send it. */
     suspend fun record(draft: TransactionDraft): PendingOperation {
         val op = store.enqueue(draft); reload(); syncSoon(); return op

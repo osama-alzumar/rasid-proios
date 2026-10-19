@@ -152,6 +152,18 @@ class RewardRulesTest {
         assertEquals(1, RewardRules.evaluate(TransactionDraft(1, TxType.EARN, serviceId = 7), visits, 0, Service(7, "غسيل", null)).getOrThrow())
         assertEquals(1, RewardRules.evaluate(TransactionDraft(1, TxType.REDEEM), visits, 3, null).getOrThrow())
     }
+    @Test fun quickScanAddsOneStampWithoutInvoiceUntilFull() {
+        val add = RewardRules.quickScan(3, stamps, 2) as RewardRules.QuickScan.Add
+        assertEquals(1, RewardRules.evaluate(add.draft, stamps, 2, null).getOrThrow())
+        val body = RewardRules.requestBody(add.draft, "ABC")
+        assertEquals(true, body["quick_scan"])
+        assertEquals(null, body["invoice_no"])
+        assertEquals(RewardRules.QuickScan.RewardReady, RewardRules.quickScan(3, stamps, 6))
+        assertEquals(RuleError.CardFull, err(RewardRules.evaluate(add.draft, stamps, 6, null)))
+        assertEquals(RewardRules.QuickScan.NotSupported, RewardRules.quickScan(3, minStamp, 0))
+        assertEquals(RewardRules.QuickScan.NotSupported, RewardRules.quickScan(3, points, 0))
+        assertEquals(RewardRules.QuickScan.NotSupported, RewardRules.quickScan(3, visits, 0))
+    }
     @Test fun balanceSummary() {
         assertEquals("4 / 6", BalanceSummary.of(stamps, 4).headline)
         assertTrue(BalanceSummary.of(stamps, 6).rewardAvailable)

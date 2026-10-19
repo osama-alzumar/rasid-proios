@@ -34,6 +34,10 @@ final class LiveServerTests: XCTestCase {
 
         let search = app.textFields["رقم الجوال أو رقم البطاقة"]
         XCTAssertTrue(search.waitForExistence(timeout: 20), "logged in and on the scan tab")
+        // Manual path first: quick scan off, so the search opens the customer.
+        let quick = app.switches["إضافة ختم تلقائياً عند المسح"]
+        XCTAssertTrue(quick.waitForExistence(timeout: 5), "quick scan switch shown for a stamps shop")
+        setSwitch(quick, on: false)
         search.tap()
         search.typeText("0500000101")
         app.buttons["بحث"].tap()
@@ -44,7 +48,7 @@ final class LiveServerTests: XCTestCase {
         let balance = app.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "^[0-9]+ / 6$")).firstMatch
         XCTAssertTrue(balance.waitForExistence(timeout: 5), "stamp balance shown")
         let before = Int(balance.label.split(separator: " ").first ?? "") ?? -1
-        guard (0..<6).contains(before) else { throw XCTSkip("demo card already full (\(before)/6); reset the demo shop") }
+        guard (0..<5).contains(before) else { throw XCTSkip("demo card nearly full (\(before)/6); reset the demo shop") }
         attach(app, "live-01-member")
 
         app.buttons["إضافة ختم"].tap()
@@ -57,6 +61,16 @@ final class LiveServerTests: XCTestCase {
         XCTAssertTrue(labelContaining("\(before + 1) / 6", in: app).waitForExistence(timeout: 10), "balance went up by exactly one")
         attach(app, "live-02-after-stamp")
 
+        // Quick scan: back on the scan tab, the same lookup adds one stamp by itself.
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        setSwitch(quick, on: true)
+        search.tap()
+        search.typeText("0500000101")
+        app.buttons["بحث"].tap()
+        XCTAssertTrue(labelContaining("الأختام \(before + 2) من 6", in: app).waitForExistence(timeout: 15), "quick scan added exactly one stamp")
+        attach(app, "live-02b-quick-scan")
+
         // The operation must leave the outbox: History shows nothing pending.
         let history = app.tabBars.buttons["السجل"]
         history.tap()
@@ -67,6 +81,12 @@ final class LiveServerTests: XCTestCase {
         waitForExpectations(timeout: 30)
         XCTAssertTrue(app.staticTexts["سارة العتيبي"].waitForExistence(timeout: 10), "server transaction listed")
         attach(app, "live-03-history")
+    }
+
+    private func setSwitch(_ toggle: XCUIElement, on: Bool) {
+        let isOn = (toggle.value as? String) == "1"
+        if isOn != on { toggle.switches.firstMatch.tap() }
+        XCTAssertEqual((toggle.value as? String) == "1", on)
     }
 
     /// The balance card combines its texts into one accessibility element.

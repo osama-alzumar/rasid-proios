@@ -15,6 +15,8 @@ data class TransactionDraft(
     val invoiceNo: String? = null,
     val vehicleId: Int? = null,
     val serviceId: Int? = null,
+    /** Added by scanning the card with quick scan on: one stamp, no invoice. */
+    val quickScan: Boolean? = null,
 )
 
 sealed class RuleError(val message: String) {
@@ -23,6 +25,7 @@ sealed class RuleError(val message: String) {
     data object CountRequired : RuleError("أدخل العدد.")
     data class BelowMinimumStampAmount(val min: Double) : RuleError("الحد الأدنى لاحتساب الختم هو ${Formatting.amount(min)} ريال — قيمة الفاتورة المدخلة أقل من ذلك.")
     data class InsufficientBalance(val needed: Int, val available: Int) : RuleError("الرصيد غير كافٍ: المطلوب $needed والمتاح $available.")
+    data object CardFull : RuleError("البطاقة مكتملة — المكافأة جاهزة للاستبدال.")
 }
 
 class RuleException(val error: RuleError) : Exception(error.message)
@@ -52,6 +55,24 @@ object RewardRules {
         else FormSpec(false, false, false, false, false, false)
     }
 
+    /** Quick scan adds a stamp the moment a card is scanned: plain stamps shops only. */
+    fun supportsQuickScan(shop: Shop): Boolean = shop.rewardType == RewardType.STAMPS && shop.minStampAmount == null
+
+    sealed class QuickScan {
+        /** Add one stamp now. */
+        data class Add(val draft: TransactionDraft) : QuickScan()
+        /** The card is full: the visit is the reward, open the member to redeem. */
+        data object RewardReady : QuickScan()
+        /** Quick scan does not apply: open the member as usual. */
+        data object NotSupported : QuickScan()
+    }
+
+    fun quickScan(memberId: Int, shop: Shop, balance: Int): QuickScan = when {
+        !supportsQuickScan(shop) -> QuickScan.NotSupported
+        balance >= shop.stampsPerReward -> QuickScan.RewardReady
+        else -> QuickScan.Add(TransactionDraft(memberId, TxType.EARN, count = 1, quickScan = true))
+    }
+
     /** Validates the draft; returns the absolute balance change (the server's points_change). */
     fun evaluate(draft: TransactionDraft, shop: Shop, balance: Int, service: Service?): Result<Int> {
         var amount = draft.amount
@@ -62,8 +83,12 @@ object RewardRules {
             if (amount == null && service.price != null) amount = service.price
             if (count == null) count = 1
         }
-        val spec = formSpec(shop, draft.type, hasService)
         fun fail(e: RuleError) = Result.failure<Int>(RuleException(e))
+        if (draft.quickScan == true) {
+            if (draft.type != TxType.EARN || !supportsQuickScan(shop)) return fail(RuleError.InvoiceRequired)
+            return if (balance >= shop.stampsPerReward) fail(RuleError.CardFull) else Result.success(1)
+        }
+        val spec = formSpec(shop, draft.type, hasService)
         if (spec.amountRequired && amount == null) return fail(RuleError.AmountRequired)
         if (spec.invoiceRequired && invoice.isEmpty()) return fail(RuleError.InvoiceRequired)
         if (spec.countRequired && (count ?: 0) < 1) return fail(RuleError.CountRequired)
@@ -91,6 +116,7 @@ object RewardRules {
         draft.invoiceNo?.trim()?.takeIf { it.isNotEmpty() }?.let { put("invoice_no", it) }
         draft.vehicleId?.let { put("vehicle_id", it) }
         draft.serviceId?.let { put("service_id", it) }
+        if (draft.quickScan == true) put("quick_scan", true)
     }
 }
 

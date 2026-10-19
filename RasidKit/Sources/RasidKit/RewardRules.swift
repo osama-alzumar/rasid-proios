@@ -10,8 +10,11 @@ public struct TransactionDraft: Codable, Sendable, Hashable {
     public var invoiceNo: String?
     public var vehicleId: Int?
     public var serviceId: Int?
+    /// Added by scanning the card with quick scan on: one stamp, no invoice.
+    /// Optional so operations queued by older builds still decode.
+    public var quickScan: Bool?
 
-    public init(memberId: Int, type: TransactionType, amount: Double? = nil, count: Int? = nil, invoiceNo: String? = nil, vehicleId: Int? = nil, serviceId: Int? = nil) {
+    public init(memberId: Int, type: TransactionType, amount: Double? = nil, count: Int? = nil, invoiceNo: String? = nil, vehicleId: Int? = nil, serviceId: Int? = nil, quickScan: Bool? = nil) {
         self.memberId = memberId
         self.type = type
         self.amount = amount
@@ -19,6 +22,7 @@ public struct TransactionDraft: Codable, Sendable, Hashable {
         self.invoiceNo = invoiceNo
         self.vehicleId = vehicleId
         self.serviceId = serviceId
+        self.quickScan = quickScan
     }
 }
 
@@ -28,6 +32,7 @@ public enum RewardRuleError: Error, Equatable, Sendable {
     case countRequired
     case belowMinimumStampAmount(Double)
     case insufficientBalance(needed: Int, available: Int)
+    case cardFull
 
     public var message: String {
         switch self {
@@ -41,6 +46,8 @@ public enum RewardRuleError: Error, Equatable, Sendable {
             return "الحد الأدنى لاحتساب الختم هو \(Formatting.amount(min)) ريال — قيمة الفاتورة المدخلة أقل من ذلك."
         case .insufficientBalance(let needed, let available):
             return "الرصيد غير كافٍ: المطلوب \(needed) والمتاح \(available)."
+        case .cardFull:
+            return "البطاقة مكتملة — المكافأة جاهزة للاستبدال."
         }
     }
 }
@@ -85,6 +92,27 @@ public enum RewardRules {
         }
     }
 
+    /// Quick scan adds a stamp the moment a card is scanned. It needs a shop
+    /// that gives plain stamps (no minimum invoice amount to check).
+    public static func supportsQuickScan(_ shop: Shop) -> Bool {
+        shop.rewardType == .stamps && shop.minStampAmount == nil
+    }
+
+    public enum QuickScanDecision: Equatable, Sendable {
+        /// Add one stamp now.
+        case add(TransactionDraft)
+        /// The card is full: the visit is the reward, open the member to redeem.
+        case rewardReady
+        /// Quick scan does not apply here: open the member as usual.
+        case notSupported
+    }
+
+    public static func quickScan(memberId: Int, shop: Shop, balance: Int) -> QuickScanDecision {
+        guard supportsQuickScan(shop) else { return .notSupported }
+        if balance >= shop.stampsPerReward { return .rewardReady }
+        return .add(TransactionDraft(memberId: memberId, type: .earn, count: 1, quickScan: true))
+    }
+
     /// Validates the draft and returns the absolute balance change
     /// (the server's `points_change`). Earn adds it, redeem subtracts it.
     public static func evaluate(_ draft: TransactionDraft, shop: Shop, balance: Int, service: Service?) -> Result<Int, RewardRuleError> {
@@ -97,6 +125,12 @@ public enum RewardRules {
         if draft.type == .earn, let service {
             if amount == nil, let price = service.price { amount = price }
             if count == nil { count = 1 }
+        }
+
+        if draft.quickScan == true {
+            guard draft.type == .earn, supportsQuickScan(shop) else { return .failure(.invoiceRequired) }
+            let needed = shop.stampsPerReward
+            return balance >= needed ? .failure(.cardFull) : .success(1)
         }
 
         let spec = formSpec(shop: shop, type: draft.type, hasService: hasService)
@@ -139,6 +173,7 @@ public enum RewardRules {
         }
         if let vehicleId = draft.vehicleId { body["vehicle_id"] = AnyEncodable(vehicleId) }
         if let serviceId = draft.serviceId { body["service_id"] = AnyEncodable(serviceId) }
+        if draft.quickScan == true { body["quick_scan"] = AnyEncodable(true) }
         return body
     }
 }
@@ -175,12 +210,13 @@ public struct AnyEncodable: Encodable, Sendable, Equatable {
     private let value: Value
 
     private enum Value: Equatable, Sendable {
-        case int(Int), double(Double), string(String)
+        case int(Int), double(Double), string(String), bool(Bool)
     }
 
     public init(_ int: Int) { value = .int(int) }
     public init(_ double: Double) { value = .double(double) }
     public init(_ string: String) { value = .string(string) }
+    public init(_ bool: Bool) { value = .bool(bool) }
 
     public func encode(to encoder: Encoder) throws {
         var c = encoder.singleValueContainer()
@@ -188,6 +224,7 @@ public struct AnyEncodable: Encodable, Sendable, Equatable {
         case .int(let v): try c.encode(v)
         case .double(let v): try c.encode(v)
         case .string(let v): try c.encode(v)
+        case .bool(let v): try c.encode(v)
         }
     }
 }
