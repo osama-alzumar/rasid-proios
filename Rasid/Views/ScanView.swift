@@ -178,7 +178,6 @@ struct ScanView: View {
             }
         }
     }
-}
 
     private var repeatTitle: String {
         guard let member = repeatCandidate, let at = lastQuickAdd[member.id] else { return "" }
